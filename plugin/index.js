@@ -95,36 +95,34 @@ class DashboardPlugin {
       });
     }
 
-    compiler.apply(
-      new webpack.ProgressPlugin((percent, msg) => {
-        handler([
-          {
-            type: "status",
-            value: "Compiling"
-          },
-          {
-            type: "progress",
-            value: percent
-          },
-          {
-            type: "operations",
-            value: msg + getTimeMessage(timer)
-          }
-        ]);
-      })
-    );
+    new webpack.ProgressPlugin((percent, msg) => {
+      handler([
+        {
+          type: "status",
+          value: "Compiling"
+        },
+        {
+          type: "progress",
+          value: percent
+        },
+        {
+          type: "operations",
+          value: msg + getTimeMessage(timer)
+        }
+      ]);
+    }).apply(compiler);
 
-    compiler.plugin("watch-run", (c, done) => {
+    const watchRun = (c, done) => {
       this.watching = true;
       done();
-    });
+    };
 
-    compiler.plugin("run", (c, done) => {
+    const run = (c, done) => {
       this.watching = false;
       done();
-    });
+    };
 
-    compiler.plugin("compile", () => {
+    const compile = () => {
       timer = Date.now();
       handler([
         {
@@ -132,9 +130,9 @@ class DashboardPlugin {
           value: "Compiling"
         }
       ]);
-    });
+    };
 
-    compiler.plugin("invalid", () => {
+    const invalid = () => {
       handler([
         {
           type: "status",
@@ -152,9 +150,9 @@ class DashboardPlugin {
           type: "clear"
         }
       ]);
-    });
+    };
 
-    compiler.plugin("failed", () => {
+    const failed = () => {
       handler([
         {
           type: "status",
@@ -165,9 +163,9 @@ class DashboardPlugin {
           value: `idle${getTimeMessage(timer)}`
         }
       ]);
-    });
+    };
 
-    compiler.plugin("done", stats => {
+    const done = stats => {
       const options = stats.compilation.options;
       const statsOptions =
         options.devServer && options.devServer.stats ||
@@ -211,7 +209,25 @@ class DashboardPlugin {
           complete: this.cleanup
         });
       }
-    });
+    };
+
+    if (compiler.hooks) {
+      const plugin = { name: 'WebpackDashboard' };
+
+      compiler.hooks.watchRun.tapAsync(plugin, watchRun);
+      compiler.hooks.run.tapAsync(plugin, run);
+      compiler.hooks.compile.tap(plugin, compile);
+      compiler.hooks.invalid.tap(plugin, invalid);
+      compiler.hooks.failed.tap(plugin, failed);
+      compiler.hooks.done.tap(plugin, done);
+    } else {
+      compiler.plugin("watch-run", watchRun);
+      compiler.plugin("run", run);
+      compiler.plugin("compile", compile);
+      compiler.plugin("invalid", invalid);
+      compiler.plugin("failed", failed);
+      compiler.plugin("done", done);
+    }
   }
 
   /**
